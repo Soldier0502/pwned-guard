@@ -21,9 +21,26 @@ test("parseRangeBody keeps real matches and drops padding entries", () => {
   assert.equal(parsed.size, 2);
 });
 
-test("parseRangeBody ignores blank and malformed lines", () => {
-  const parsed = parseRangeBody("\n\nnot-a-line\nAAAA:12\n");
-  assert.deepEqual([...parsed.entries()], [["AAAA", 12]]);
+test("parseRangeBody ignores blank lines and normalises lowercase suffixes", () => {
+  const parsed = parseRangeBody("\n\n0018a45c4d1def81644b54ab7f969b88d65:3\r\n\n");
+  assert.deepEqual([...parsed.entries()], [["0018A45C4D1DEF81644B54AB7F969B88D65", 3]]);
+});
+
+test("parseRangeBody rejects a body that is not a range response", () => {
+  // A captive portal or WAF answering 200 must not read as "zero matches".
+  assert.throws(() => parseRangeBody("<html><body>Please sign in</body></html>"), RangeLookupError);
+  assert.throws(() => parseRangeBody(`${BODY}\r\nAAAA:12`), RangeLookupError, "short suffix");
+  assert.throws(() => parseRangeBody("0018A45C4D1DEF81644B54AB7F969B88D65:12abc"), RangeLookupError, "junk count");
+});
+
+test("parseRangeBody rejects an empty body", () => {
+  assert.throws(() => parseRangeBody(""), RangeLookupError);
+  assert.throws(() => parseRangeBody("\r\n\r\n"), RangeLookupError);
+});
+
+test("fetchRange turns a garbage 200 into a RangeLookupError", async () => {
+  const { impl } = mockFetch("<html>blocked by proxy</html>");
+  await assert.rejects(() => fetchRange("5BAA6", { fetchImpl: impl }), RangeLookupError);
 });
 
 test("fetchRange sends only the 5-character prefix", async () => {
@@ -53,6 +70,22 @@ test("fetchRange turns a non-200 into a RangeLookupError carrying the status", a
     () => fetchRange("5BAA6", { fetchImpl: impl }),
     (error: RangeLookupError) => error instanceof RangeLookupError && error.status === 503,
   );
+});
+
+test("fetchRange times out when the body never finishes arriving", async () => {
+  // Headers arrive at once, then the body stalls forever.
+  const impl = (async () =>
+    new Response(new ReadableStream({ start() {} }), { status: 200 })) as unknown as typeof fetch;
+
+  const outcome = await Promise.race([
+    fetchRange("5BAA6", { fetchImpl: impl, timeoutMs: 30 }).then(
+      () => "resolved",
+      (error: unknown) => error,
+    ),
+    new Promise((resolve) => setTimeout(() => resolve("hung"), 1000).unref()),
+  ]);
+
+  assert.ok(outcome instanceof RangeLookupError, `expected a RangeLookupError, got: ${String(outcome)}`);
 });
 
 test("fetchRange wraps transport failures", async () => {

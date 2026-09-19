@@ -3,6 +3,8 @@ import { RangeLookupError } from "./errors.ts";
 export const DEFAULT_ENDPOINT = "https://api.pwnedpasswords.com/range";
 export const DEFAULT_USER_AGENT = "pwned-guard (+https://github.com/Soldier0502/pwned-guard)";
 
+const RANGE_LINE = /^([0-9A-Fa-f]{35}):(\d+)$/;
+
 export interface RangeClientOptions {
   /** Base URL of the range endpoint. Override it to point at your own mirror. */
   endpoint?: string;
@@ -43,31 +45,45 @@ export async function fetchRange(
   }
 
   const controller = new AbortController();
+  // The deadline covers the whole exchange, body included: a server that sends
+  // headers and then stalls must not hang the caller.
+  const deadline = new Promise<never>((_, reject) => {
+    controller.signal.addEventListener("abort", () => reject(new Error(`Timed out after ${timeoutMs} ms.`)), {
+      once: true,
+    });
+  });
+  deadline.catch(() => {});
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-  let response: Response;
+  let body: string;
   try {
-    response = await doFetch(`${endpoint}/${prefix}`, {
-      method: "GET",
-      signal: controller.signal,
-      headers: {
-        "User-Agent": options.userAgent ?? DEFAULT_USER_AGENT,
-        ...(options.addPadding === false ? {} : { "Add-Padding": "true" }),
-      },
-    });
+    const response = await Promise.race([
+      doFetch(`${endpoint}/${prefix}`, {
+        method: "GET",
+        signal: controller.signal,
+        headers: {
+          "User-Agent": options.userAgent ?? DEFAULT_USER_AGENT,
+          ...(options.addPadding === false ? {} : { "Add-Padding": "true" }),
+        },
+      }),
+      deadline,
+    ]);
+
+    if (!response.ok) {
+      throw new RangeLookupError(`Range lookup for ${prefix} returned HTTP ${response.status}.`, {
+        status: response.status,
+      });
+    }
+
+    body = await Promise.race([response.text(), deadline]);
   } catch (cause) {
+    if (cause instanceof RangeLookupError) throw cause;
     throw new RangeLookupError(`Range lookup for ${prefix} failed.`, { cause });
   } finally {
     clearTimeout(timer);
   }
 
-  if (!response.ok) {
-    throw new RangeLookupError(`Range lookup for ${prefix} returned HTTP ${response.status}.`, {
-      status: response.status,
-    });
-  }
-
-  return parseRangeBody(await response.text());
+  return parseRangeBody(body);
 }
 
 /**
@@ -75,22 +91,33 @@ export async function fetchRange(
  *
  * Padding entries come back with a count of 0 and are dropped here, so the
  * rest of the code never has to know padding exists.
+ *
+ * Parsing is strict on purpose. A captive portal, proxy or WAF can answer 200
+ * with an HTML page; reading that as "no matches" would accept every password
+ * and sidestep `fail-closed`. Anything that is not a range response throws.
  */
 export function parseRangeBody(body: string): Map<string, number> {
   const suffixes = new Map<string, number>();
+  let lines = 0;
 
   for (const rawLine of body.split("\n")) {
     const line = rawLine.trim();
     if (!line) continue;
 
-    const separator = line.indexOf(":");
-    if (separator === -1) continue;
+    const match = RANGE_LINE.exec(line);
+    if (!match) {
+      throw new RangeLookupError("Range response is malformed: expected SUFFIX:COUNT lines.");
+    }
+    lines += 1;
 
-    const suffix = line.slice(0, separator).toUpperCase();
-    const count = Number.parseInt(line.slice(separator + 1), 10);
+    const count = Number.parseInt(match[2]!, 10);
+    if (count <= 0) continue;
+    suffixes.set(match[1]!.toUpperCase(), count);
+  }
 
-    if (!Number.isFinite(count) || count <= 0) continue;
-    suffixes.set(suffix, count);
+  // Every real prefix has hundreds of suffixes, so an empty body is a failure.
+  if (lines === 0) {
+    throw new RangeLookupError("Range response is empty.");
   }
 
   return suffixes;
