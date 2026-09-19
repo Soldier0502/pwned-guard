@@ -36,8 +36,9 @@ hash completo— salga nunca del proceso.
   disponibilidad o el bloqueo.
 - Caché TTL + LRU de prefijos: en un registro con tráfico real la mayoría de las
   consultas no llegan a salir.
-- **Cero dependencias.** Funciona en Node 20+, Deno, Bun, Cloudflare Workers, Vercel
-  Edge y el navegador.
+- **Cero dependencias.** Probado en Node 20, 22 y 24 (Linux y Windows). Solo usa `fetch`
+  y Web Crypto, así que debería funcionar en Deno, Bun y runtimes edge, pero eso **no
+  está cubierto por el CI**. Es un paquete solo ESM.
 - CLI para revisar una contraseña a mano o dentro de un script.
 
 ## Demo
@@ -66,8 +67,9 @@ $ printf 'password' | pwned-guard --json
 }
 ```
 
-> Esta salida se generó ejecutando la CLI contra el fixture local del repositorio
-> (`--endpoint`), para que la demo sea reproducible sin red. Contra la API pública el
+> Esta salida se generó contra el servidor de demo del repositorio, para que sea
+> reproducible sin red: `node scripts/demo-server.mjs` y añade
+> `--endpoint http://127.0.0.1:8787/range` a cada comando. Contra la API pública el
 > formato es idéntico y el conteo lo devuelve el servicio en vivo.
 
 ## Instalación
@@ -133,7 +135,16 @@ echo -n "mi contraseña" | pwned-guard [opciones]
 | `--endpoint <url>` | Base URL de la API de rangos | pública |
 | `--json` | Salida en JSON | desactivado |
 
-Códigos de salida: `0` aceptada, `1` rechazada, `2` error de uso.
+Códigos de salida: `0` aceptada, `1` rechazada, `2` error de uso, `3` no se pudo
+comprobar (la API no respondió y no pasaste `--fail-closed`). El `3` existe para que un
+script no confunda "limpia" con "no lo sé".
+
+### Errores
+
+Cuando la consulta falla, `result.error` es un `RangeLookupError` con un `code` estable:
+`timeout`, `network`, `http` (con `status`), `malformed` (la respuesta no era un rango:
+un portal cautivo o un WAF que contesta 200 con HTML) o `invalid-input`. Los mensajes
+nunca incluyen el prefijo del hash, así que es seguro registrarlos.
 
 La contraseña se lee de **stdin** a propósito: pasarla como argumento la dejaría en el
 historial del shell y en la lista de procesos.
@@ -175,7 +186,8 @@ Tres detalles que importan:
 
 ## Integración
 
-En `examples/`:
+En `examples/` (son archivos para copiar a tu proyecto; no se compilan ni se prueban
+en el CI de este repo):
 
 - `nextjs-route-handler.ts` — App Router, con mensajes de error en español.
 - `express-middleware.ts` — middleware reutilizable para registro y cambio de contraseña.

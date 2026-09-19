@@ -5,5 +5,6 @@ export type { RangeClientOptions } from "./range-client.ts";
 export { sha1Hex, splitDigest } from "./sha1.ts";
 export { TtlCache } from "./cache.ts";
 export { PwnedGuardError, RangeLookupError } from "./errors.ts";
+export type { RangeLookupErrorCode } from "./errors.ts";
 
 export const VERSION = "0.1.0";
