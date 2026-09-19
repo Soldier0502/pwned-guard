@@ -6,7 +6,7 @@ Rechaza contraseñas que ya aparecen en filtraciones públicas, sin enviar nunca
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT">
-  <img src="https://img.shields.io/badge/node-%3E%3D18-339933" alt="Node >= 18">
+  <img src="https://img.shields.io/badge/node-%3E%3D20-339933" alt="Node >= 20">
   <img src="https://img.shields.io/badge/dependencies-0-blue" alt="Zero dependencies">
   <img src="https://github.com/Soldier0502/pwned-guard/actions/workflows/ci.yml/badge.svg" alt="CI">
 </p>
@@ -36,7 +36,7 @@ hash completo— salga nunca del proceso.
   disponibilidad o el bloqueo.
 - Caché TTL + LRU de prefijos: en un registro con tráfico real la mayoría de las
   consultas no llegan a salir.
-- **Cero dependencias.** Funciona en Node 18+, Deno, Bun, Cloudflare Workers, Vercel
+- **Cero dependencias.** Funciona en Node 20+, Deno, Bun, Cloudflare Workers, Vercel
   Edge y el navegador.
 - CLI para revisar una contraseña a mano o dentro de un script.
 
@@ -211,7 +211,7 @@ activada e identifícate con un `userAgent` propio.
   `minLength` y `localBlocklist`.
 - La caché es por proceso. Con varias instancias, cada una calienta la suya; si eso te
   importa, apunta `endpoint` a un mirror propio.
-- Requiere Web Crypto. En un Node antiguo (< 18) no funciona por diseño.
+- Requiere Web Crypto. En un Node antiguo (< 20) no funciona por diseño.
 - `fail-open` es el valor por defecto. Es una decisión de disponibilidad consciente:
   si prefieres bloquear registros antes que aceptar una contraseña sin verificar, pon
   `fail-closed` y monitoriza los `source: "error"`.

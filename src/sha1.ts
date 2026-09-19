@@ -3,7 +3,7 @@ import { PwnedGuardError } from "./errors.ts";
 /**
  * SHA-1 of a UTF-8 string, uppercase hex.
  *
- * Uses Web Crypto, which is available in Node 18+, Deno, Bun, Cloudflare
+ * Uses Web Crypto, which is available in Node 20+, Deno, Bun, Cloudflare
  * Workers, Vercel Edge and modern browsers. That keeps this package free of
  * dependencies and usable from any runtime.
  *
@@ -15,7 +15,7 @@ export async function sha1Hex(input: string): Promise<string> {
   const subtle = globalThis.crypto?.subtle;
   if (!subtle) {
     throw new PwnedGuardError(
-      "Web Crypto is not available in this runtime. Node 18+, Deno, Bun, " +
+      "Web Crypto is not available in this runtime. Node 20+, Deno, Bun, " +
         "workers and browsers all provide globalThis.crypto.subtle.",
     );
   }

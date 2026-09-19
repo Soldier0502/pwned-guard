@@ -12,7 +12,8 @@
   "types": "./dist/index.d.ts",
   "bin": { "pwned-guard": "./dist/cli.js" },
   "files": ["dist", "README.md", "LICENSE"],
-  "engines": { "node": ">=18" },
+  "engines": { "node": ">=20" },
+  "publishConfig": { "access": "public" },
   "sideEffects": false,
   "scripts": {
     "build": "tsc",
