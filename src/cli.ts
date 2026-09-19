@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { createPwnedGuard } from "./guard.ts";
 
 const USAGE = `pwned-guard - check a password against the public breach corpus
@@ -151,8 +153,23 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
   return result.allowed ? 0 : 1;
 }
 
+/**
+ * True when this file is the process entry point. Paths are compared after
+ * `realpath`, because npm runs the bin through a symlink and on Windows
+ * `import.meta.url` (`file:///C:/...`) never equals `file://` + argv[1].
+ */
+function isEntryPoint(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
 // Only run when executed directly, so the module stays importable from tests.
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntryPoint()) {
   main().then(
     (code) => process.exit(code),
     (error: unknown) => {
