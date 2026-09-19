@@ -25,6 +25,7 @@ Exit codes:
   0  password accepted
   1  password rejected
   2  usage or runtime error
+  3  could not check: the API was unreachable and --fail-closed was not set
 `;
 
 interface CliOptions {
@@ -150,6 +151,9 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
     process.stdout.write("OK       not found in the breach corpus\n");
   }
 
+  // A lookup that failed under fail-open is "allowed", but a script gating on
+  // the exit code must be able to tell "clean" from "could not check".
+  if (result.reason === "lookup-failed" && result.allowed) return 3;
   return result.allowed ? 0 : 1;
 }
 

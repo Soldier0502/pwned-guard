@@ -26,3 +26,17 @@ test("running the CLI file directly rejects a too-short password without any net
   assert.equal(result.status, 1);
   assert.match(result.stdout, /REJECTED/);
 });
+
+// Port 1 on loopback refuses the connection at once: a real failure, no external network.
+const UNREACHABLE = ["--endpoint", "http://127.0.0.1:1/range"];
+
+test("an unreachable API exits 3 under fail-open, so scripts cannot mistake it for 'accepted'", () => {
+  const result = runCli(UNREACHABLE, "correct horse battery staple");
+  assert.equal(result.status, 3);
+  assert.match(result.stdout, /UNKNOWN/);
+});
+
+test("an unreachable API exits 1 under --fail-closed", () => {
+  const result = runCli([...UNREACHABLE, "--fail-closed"], "correct horse battery staple");
+  assert.equal(result.status, 1);
+});

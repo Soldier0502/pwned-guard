@@ -33,7 +33,7 @@ export async function fetchRange(
   options: RangeClientOptions = {},
 ): Promise<Map<string, number>> {
   if (!/^[0-9A-F]{5}$/.test(prefix)) {
-    throw new RangeLookupError(`Invalid prefix: expected 5 uppercase hex characters, got "${prefix}".`);
+    throw new RangeLookupError("Invalid prefix: expected 5 uppercase hex characters.", { code: "invalid-input" });
   }
 
   const endpoint = options.endpoint ?? DEFAULT_ENDPOINT;
@@ -41,7 +41,7 @@ export async function fetchRange(
   const doFetch = options.fetchImpl ?? globalThis.fetch;
 
   if (typeof doFetch !== "function") {
-    throw new RangeLookupError("No fetch implementation available. Pass options.fetchImpl.");
+    throw new RangeLookupError("No fetch implementation available. Pass options.fetchImpl.", { code: "invalid-input" });
   }
 
   const controller = new AbortController();
@@ -70,15 +70,20 @@ export async function fetchRange(
     ]);
 
     if (!response.ok) {
-      throw new RangeLookupError(`Range lookup for ${prefix} returned HTTP ${response.status}.`, {
+      throw new RangeLookupError(`Range lookup returned HTTP ${response.status}.`, {
         status: response.status,
+        code: "http",
       });
     }
 
     body = await Promise.race([response.text(), deadline]);
   } catch (cause) {
     if (cause instanceof RangeLookupError) throw cause;
-    throw new RangeLookupError(`Range lookup for ${prefix} failed.`, { cause });
+    const timedOut = controller.signal.aborted;
+    throw new RangeLookupError(timedOut ? `Range lookup timed out after ${timeoutMs} ms.` : "Range lookup failed.", {
+      cause,
+      code: timedOut ? "timeout" : "network",
+    });
   } finally {
     clearTimeout(timer);
   }
@@ -106,7 +111,7 @@ export function parseRangeBody(body: string): Map<string, number> {
 
     const match = RANGE_LINE.exec(line);
     if (!match) {
-      throw new RangeLookupError("Range response is malformed: expected SUFFIX:COUNT lines.");
+      throw new RangeLookupError("Range response is malformed: expected SUFFIX:COUNT lines.", { code: "malformed" });
     }
     lines += 1;
 
@@ -117,7 +122,7 @@ export function parseRangeBody(body: string): Map<string, number> {
 
   // Every real prefix has hundreds of suffixes, so an empty body is a failure.
   if (lines === 0) {
-    throw new RangeLookupError("Range response is empty.");
+    throw new RangeLookupError("Range response is empty.", { code: "malformed" });
   }
 
   return suffixes;

@@ -94,3 +94,23 @@ test("fetchRange wraps transport failures", async () => {
   }) as unknown as typeof fetch;
   await assert.rejects(() => fetchRange("5BAA6", { fetchImpl: impl }), RangeLookupError);
 });
+
+test("lookup errors never carry the hash prefix, and say what went wrong", async () => {
+  const cases: Array<[string, typeof fetch, string]> = [
+    ["network", (async () => { throw new Error("socket hang up"); }) as unknown as typeof fetch, "network"],
+    ["http", mockFetch("", { status: 503 }).impl, "http"],
+    ["malformed", mockFetch("<html></html>").impl, "malformed"],
+    ["timeout", (async () => new Response(new ReadableStream({ start() {} }))) as unknown as typeof fetch, "timeout"],
+  ];
+
+  for (const [label, impl, code] of cases) {
+    const error = await fetchRange("5BAA6", { fetchImpl: impl, timeoutMs: 30 }).then(
+      () => undefined,
+      (e: RangeLookupError) => e,
+    );
+    assert.ok(error instanceof RangeLookupError, label);
+    assert.equal(error.code, code, label);
+    // 5 hex chars are 20 bits of the password hash: they must not end up in a log next to a user id.
+    assert.equal(error.message.includes("5BAA6"), false, `${label}: ${error.message}`);
+  }
+});
