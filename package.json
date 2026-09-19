@@ -1,6 +1,6 @@
 {
   "name": "@soldier0502/pwned-guard",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Reject passwords that already appear in public breaches, without ever sending the password anywhere (k-anonymity).",
   "keywords": ["password", "security", "breach", "pwned", "k-anonymity", "authentication"],
   "license": "MIT",

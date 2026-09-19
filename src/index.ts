@@ -7,4 +7,4 @@ export { TtlCache } from "./cache.ts";
 export { PwnedGuardError, RangeLookupError } from "./errors.ts";
 export type { RangeLookupErrorCode } from "./errors.ts";
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.2.0";
