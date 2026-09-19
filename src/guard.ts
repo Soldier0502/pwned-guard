@@ -57,6 +57,13 @@ const DEFAULTS = {
   cacheMaxEntries: 1024,
 };
 
+/** NaN slips through `<` comparisons, so numeric options are checked explicitly. */
+function assertInteger(name: string, value: number, min: number): void {
+  if (!Number.isInteger(value) || value < min) {
+    throw new RangeError(`${name} must be an integer >= ${min}.`);
+  }
+}
+
 /**
  * Checks passwords against the public breach corpus without ever sending the
  * password, or its full hash, anywhere.
@@ -70,10 +77,20 @@ export class PwnedGuard {
   private readonly blocklist: Set<string>;
 
   constructor(options: PwnedGuardOptions = {}) {
-    this.options = { ...DEFAULTS, ...options };
+    // An explicit `undefined` (config built from env vars) must not override a
+    // default: `errorPolicy: undefined` would otherwise behave as fail-closed.
+    const defined = Object.fromEntries(Object.entries(options).filter(([, value]) => value !== undefined));
+    this.options = { ...DEFAULTS, ...defined };
 
-    if (this.options.maxBreaches < 0) {
-      throw new RangeError("maxBreaches must be >= 0.");
+    assertInteger("maxBreaches", this.options.maxBreaches, 0);
+    assertInteger("minLength", this.options.minLength, 0);
+    assertInteger("cacheTtlMs", this.options.cacheTtlMs, 0);
+    assertInteger("cacheMaxEntries", this.options.cacheMaxEntries, 1);
+    if (this.options.timeoutMs !== undefined) {
+      assertInteger("timeoutMs", this.options.timeoutMs, 1);
+    }
+    if (this.options.errorPolicy !== "fail-open" && this.options.errorPolicy !== "fail-closed") {
+      throw new TypeError('errorPolicy must be "fail-open" or "fail-closed".');
     }
 
     this.cache = new TtlCache({

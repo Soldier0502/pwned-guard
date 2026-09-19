@@ -163,3 +163,33 @@ test("isPwned works as a one-shot helper", async () => {
   const result = await isPwned("password", { fetchImpl: impl });
   assert.equal(result.pwned, true);
 });
+
+test("an explicit undefined option falls back to the default instead of changing policy", async () => {
+  const guard = createPwnedGuard({
+    fetchImpl: failingFetch(),
+    errorPolicy: undefined,
+    minLength: undefined,
+    maxBreaches: undefined,
+  });
+
+  const lookupFailed = await guard.check("correct horse battery");
+  assert.equal(lookupFailed.allowed, true, "errorPolicy: undefined must still mean fail-open");
+
+  const tooShort = await guard.check("short");
+  assert.equal(tooShort.reason, "too-short", "minLength: undefined must still mean 8");
+});
+
+test("maxBreaches: undefined still accepts a clean password", async () => {
+  const { impl } = mockFetch({ AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA: 3 });
+  const result = await createPwnedGuard({ fetchImpl: impl, maxBreaches: undefined }).check("password");
+  assert.deepEqual([result.allowed, result.reason], [true, "ok"]);
+});
+
+test("invalid numeric and policy options are rejected at construction time", () => {
+  assert.throws(() => createPwnedGuard({ maxBreaches: Number.NaN }), RangeError);
+  assert.throws(() => createPwnedGuard({ minLength: Number.NaN }), RangeError);
+  assert.throws(() => createPwnedGuard({ cacheTtlMs: Number.NaN }), RangeError);
+  assert.throws(() => createPwnedGuard({ cacheMaxEntries: 0 }), RangeError);
+  assert.throws(() => createPwnedGuard({ timeoutMs: 0 }), RangeError, "a 0 ms timeout aborts every lookup");
+  assert.throws(() => createPwnedGuard({ errorPolicy: "fail-opne" as never }), TypeError);
+});
