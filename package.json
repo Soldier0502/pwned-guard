@@ -22,7 +22,7 @@
     "prepublishOnly": "npm run build && npm test"
   },
   "devDependencies": {
-    "@types/node": "^22.10.0",
+    "@types/node": "^22.20.5",
     "typescript": "^7.0.2"
   }
 }
